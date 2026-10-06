@@ -125,8 +125,8 @@
 </head>
 <body>
   <header>
-    <h1>إعداد جيش المقاليع — سيرفر 4</h1>
-    <div class="target">الهدف: قرية 3 (-52,-40)</div>
+    <h1 id="title">إعداد جيش المقاليع</h1>
+    <div class="target" id="target"></div>
   </header>
 
   <main id="troops"></main>
@@ -135,11 +135,11 @@
     <div class="step-row">
       <div>
         <div class="name">عدد الموجات</div>
-        <div class="hint">الحد الأعلى 30</div>
+        <div class="hint" id="wavesHint">الحد الأعلى 30</div>
       </div>
       <div class="stepper">
         <button type="button" id="minus">−</button>
-        <strong id="waves">21</strong>
+        <strong id="waves">1</strong>
         <button type="button" id="plus">+</button>
       </div>
     </div>
@@ -150,13 +150,13 @@
         <div class="hint">يُستخدم مرة واحدة فقط</div>
       </div>
       <label class="switch">
-        <input id="hero" type="checkbox" checked>
+        <input id="hero" type="checkbox">
         <span></span>
       </label>
     </div>
     <div class="summary">
       <span>إجمالي المقاليع</span>
-      <strong id="catTotal">1,890,000</strong>
+      <strong id="catTotal">0</strong>
     </div>
   </section>
 
@@ -164,34 +164,85 @@
     <button type="button" id="cancel">إلغاء</button>
     <button type="button" class="primary" id="approve">اعتماد الإعداد</button>
   </footer>
-  <div class="toast" id="toast">تم اعتماد الإعداد التجريبي</div>
+  <div class="toast" id="toast">تم اعتماد الإعداد</div>
 
   <script>
     const tg = window.Telegram?.WebApp;
     tg?.ready();
     tg?.expand();
 
-    const state = {
+    function readConfig() {
+      const encoded = new URLSearchParams(location.search).get('d');
+      if (!encoded) return null;
+      try {
+        const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/')
+          + '='.repeat((4 - encoded.length % 4) % 4);
+        const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
+        return JSON.parse(new TextDecoder().decode(bytes));
+      } catch {
+        return null;
+      }
+    }
+
+    const config = readConfig() || {
+      kind: 'catapult_config',
+      sid: 's4',
+      nonce: 'demo',
+      target: 'قرية 3 (-52,-40)',
       waves: 21,
+      maximumWaves: 30,
+      hero: true,
+      heroAvailable: true,
       troops: [
-        { id: 'cavalry', name: 'فارس الجرمان', available: 78516371, selected: 77589529, suffix: 'الموجة الأولى' },
-        { id: 'rams', name: 'محطمة الأبواب', available: 35325208, selected: 2000000, suffix: 'الموجة الأولى' },
-        { id: 'cats', name: 'مقلاع', available: 20186324, selected: 90000, suffix: 'لكل موجة' }
+        { id: 16, name: 'فارس الجرمان', available: 78516371, selected: 77589529, role: 'troop' },
+        { id: 17, name: 'محطمة الأبواب', available: 35325208, selected: 2000000, role: 'troop' },
+        { id: 18, name: 'مقلاع', available: 20186324, selected: 90000, role: 'catapult' }
       ]
     };
+    const state = {
+      waves: Math.max(1, Number(config.waves) || 1),
+      maximumWaves: Math.max(1, Number(config.maximumWaves) || 30),
+      troops: Array.isArray(config.troops) ? config.troops.map(troop => ({
+        id: Number(troop.id),
+        name: String(troop.name || ''),
+        available: Math.max(0, Number(troop.available) || 0),
+        selected: Math.max(0, Number(troop.selected) || 0),
+        role: troop.role === 'catapult' ? 'catapult' : 'troop'
+      })) : []
+    };
+    state.waves = Math.min(state.maximumWaves, state.waves);
+
     const format = value => Number(value).toLocaleString('en-US');
+    const escapeHtml = value => String(value)
+      .replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;').replaceAll('"', '&quot;');
     const container = document.getElementById('troops');
+    const hero = document.getElementById('hero');
+
+    document.getElementById('title').textContent =
+      `إعداد جيش المقاليع — ${config.sid || ''}`;
+    document.getElementById('target').textContent = `الهدف: ${config.target || ''}`;
+    document.getElementById('wavesHint').textContent =
+      `الحد الأعلى ${state.maximumWaves}`;
+    hero.checked = Boolean(config.hero) && Boolean(config.heroAvailable);
+    hero.disabled = !config.heroAvailable;
+
+    function maximumFor(troop) {
+      return troop.role === 'catapult'
+        ? Math.floor(troop.available / state.waves)
+        : troop.available;
+    }
 
     function renderTroops() {
       container.innerHTML = state.troops.map(troop => `
         <section class="card" data-id="${troop.id}">
           <div class="row-head">
-            <span class="name">${troop.name}</span>
+            <span class="name">${escapeHtml(troop.name)}</span>
             <span class="available">المتوفر ${format(troop.available)}</span>
           </div>
-          <input type="range" min="0" max="${troop.available}" step="1" value="${troop.selected}">
+          <input type="range" min="0" max="${maximumFor(troop)}" step="1" value="${Math.min(troop.selected, maximumFor(troop))}">
           <div class="value-line">
-            <span class="hint">${troop.suffix}</span>
+            <span class="hint">${troop.role === 'catapult' ? 'لكل موجة' : 'الموجة الأولى'}</span>
             <span class="selected">${format(troop.selected)}</span>
           </div>
           <div class="presets">
@@ -214,7 +265,7 @@
         });
         for (const button of card.querySelectorAll('.preset')) {
           button.addEventListener('click', () => {
-            troop.selected = Math.floor(troop.available * Number(button.dataset.percent) / 100);
+            troop.selected = Math.floor(maximumFor(troop) * Number(button.dataset.percent) / 100);
             slider.value = troop.selected;
             selected.textContent = format(troop.selected);
             card.querySelectorAll('.preset').forEach(item => item.classList.remove('active'));
@@ -228,8 +279,20 @@
 
     function updateSummary() {
       document.getElementById('waves').textContent = state.waves;
-      const cats = state.troops.find(troop => troop.id === 'cats').selected;
+      const catsTroop = state.troops.find(troop => troop.role === 'catapult');
+      const cats = catsTroop?.selected || 0;
       document.getElementById('catTotal').textContent = format(cats * state.waves);
+      for (const card of container.querySelectorAll('.card')) {
+        const troop = state.troops.find(item => String(item.id) === card.dataset.id);
+        if (!troop) continue;
+        const slider = card.querySelector('input');
+        slider.max = maximumFor(troop);
+        if (troop.selected > Number(slider.max)) {
+          troop.selected = Number(slider.max);
+          slider.value = troop.selected;
+          card.querySelector('.selected').textContent = format(troop.selected);
+        }
+      }
     }
 
     document.getElementById('minus').addEventListener('click', () => {
@@ -237,15 +300,35 @@
       updateSummary();
     });
     document.getElementById('plus').addEventListener('click', () => {
-      state.waves = Math.min(30, state.waves + 1);
+      state.waves = Math.min(state.maximumWaves, state.waves + 1);
       updateSummary();
     });
     document.getElementById('cancel').addEventListener('click', () => tg?.close());
     document.getElementById('approve').addEventListener('click', () => {
+      const cats = state.troops.find(troop => troop.role === 'catapult');
+      if (!cats || cats.selected < 1) {
+        tg?.showAlert?.('اختر عدد المقاليع لكل موجة.');
+        return;
+      }
       tg?.HapticFeedback?.notificationOccurred('success');
-      const toast = document.getElementById('toast');
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 1800);
+      const payload = JSON.stringify({
+        kind: 'catapult_config',
+        sid: config.sid,
+        nonce: config.nonce,
+        waves: state.waves,
+        hero: hero.checked,
+        troops: state.troops.map(troop => ({
+          id: troop.id,
+          selected: troop.selected
+        }))
+      });
+      if (tg?.sendData) {
+        tg.sendData(payload);
+      } else {
+        const toast = document.getElementById('toast');
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 1800);
+      }
     });
 
     renderTroops();
