@@ -55,6 +55,26 @@
       grid-template-columns: repeat(4, 1fr);
       gap: 5px;
     }
+    .custom-toggle { grid-column: 1 / -1; }
+    .custom-row {
+      display: none;
+      grid-column: 1 / -1;
+      grid-template-columns: 1fr auto;
+      gap: 5px;
+    }
+    .custom-row.open { display: grid; }
+    .custom-row input {
+      min-width: 0;
+      min-height: 34px;
+      padding: 0 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+      direction: ltr;
+    }
+    .custom-row button { padding: 0 13px; color: var(--accent); }
     button {
       border: 1px solid var(--line);
       background: transparent;
@@ -253,6 +273,11 @@
             ${[25, 50, 75, 100].map(percent =>
               `<button type="button" class="preset" data-percent="${percent}">${percent === 100 ? 'الكل' : percent + '%'}</button>`
             ).join('')}
+            <button type="button" class="custom-toggle">⌨️ تخصيص رقم</button>
+            <div class="custom-row">
+              <input type="text" inputmode="numeric" placeholder="مثال: 200000">
+              <button type="button" class="custom-apply">تطبيق</button>
+            </div>
           </div>
         </section>
       `).join('');
@@ -278,6 +303,36 @@
             tg?.HapticFeedback?.impactOccurred('light');
           });
         }
+        const customRow = card.querySelector('.custom-row');
+        const customInput = customRow.querySelector('input');
+        card.querySelector('.custom-toggle').addEventListener('click', () => {
+          customRow.classList.toggle('open');
+          if (customRow.classList.contains('open')) {
+            customInput.value = troop.selected || '';
+            customInput.focus();
+          }
+        });
+        card.querySelector('.custom-apply').addEventListener('click', () => {
+          const normalized = customInput.value
+            .replace(/[٠-٩]/g, digit => '٠١٢٣٤٥٦٧٨٩'.indexOf(digit))
+            .replace(/[^\d]/g, '');
+          const value = Number(normalized);
+          const maximum = maximumFor(troop);
+          if (!Number.isSafeInteger(value) || value < 0 || value > maximum) {
+            tg?.showAlert?.(`الرقم يجب أن يكون بين 0 و ${format(maximum)}`);
+            return;
+          }
+          troop.selected = value;
+          slider.value = value;
+          selected.textContent = format(value);
+          card.querySelectorAll('.preset').forEach(item => item.classList.remove('active'));
+          customRow.classList.remove('open');
+          updateSummary();
+          tg?.HapticFeedback?.impactOccurred('light');
+        });
+        customInput.addEventListener('keydown', event => {
+          if (event.key === 'Enter') card.querySelector('.custom-apply').click();
+        });
       }
     }
 
