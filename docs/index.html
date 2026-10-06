@@ -254,7 +254,7 @@
       `).join('');
 
       for (const card of container.querySelectorAll('.card')) {
-        const troop = state.troops.find(item => item.id === card.dataset.id);
+        const troop = state.troops.find(item => String(item.id) === card.dataset.id);
         const slider = card.querySelector('input');
         const selected = card.querySelector('.selected');
         slider.addEventListener('input', () => {
