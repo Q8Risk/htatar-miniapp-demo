@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>تجربة سلايد جيش المقاليع</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: var(--tg-theme-bg-color, #0e1621);
+      --surface: var(--tg-theme-secondary-bg-color, #17212b);
+      --text: var(--tg-theme-text-color, #f5f5f5);
+      --muted: var(--tg-theme-hint-color, #8d9baa);
+      --accent: var(--tg-theme-button-color, #2aabee);
+      --accent-text: var(--tg-theme-button-text-color, #fff);
+      --line: color-mix(in srgb, var(--muted) 35%, transparent);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Tahoma, sans-serif;
+      padding: 16px 14px 110px;
+    }
+    header { margin-bottom: 14px; }
+    h1 { margin: 0 0 6px; font-size: 21px; }
+    .target { color: var(--muted); font-size: 14px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .row-head, .value-line, .step-row, .switch-row, .summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .name { font-size: 17px; font-weight: 700; }
+    .available, .hint { color: var(--muted); font-size: 13px; }
+    .selected { color: var(--accent); font-weight: 700; direction: ltr; }
+    input[type="range"] {
+      width: 100%;
+      height: 34px;
+      margin: 8px 0 5px;
+      accent-color: var(--accent);
+    }
+    .presets {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 7px;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--text);
+      border-radius: 9px;
+      min-height: 38px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:active { transform: scale(.98); }
+    .preset.active { border-color: var(--accent); color: var(--accent); }
+    .stepper { display: flex; align-items: center; gap: 12px; direction: ltr; }
+    .stepper button { width: 42px; font-size: 22px; }
+    .stepper strong { min-width: 32px; text-align: center; font-size: 20px; }
+    .switch {
+      width: 48px;
+      height: 27px;
+      border-radius: 20px;
+      background: var(--muted);
+      position: relative;
+      direction: ltr;
+    }
+    .switch input { display: none; }
+    .switch span {
+      position: absolute;
+      width: 23px;
+      height: 23px;
+      top: 2px;
+      left: 2px;
+      border-radius: 50%;
+      background: white;
+      transition: .18s;
+    }
+    .switch:has(input:checked) { background: var(--accent); }
+    .switch input:checked + span { left: 23px; }
+    .summary { margin-top: 8px; color: var(--muted); font-size: 13px; }
+    footer {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 9px;
+      padding: 12px 14px max(12px, env(safe-area-inset-bottom));
+      background: var(--bg);
+      border-top: 1px solid var(--line);
+    }
+    footer button { min-height: 48px; font-weight: 700; }
+    .primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 92px;
+      transform: translateX(-50%);
+      background: var(--text);
+      color: var(--bg);
+      padding: 9px 15px;
+      border-radius: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>إعداد جيش المقاليع — سيرفر 4</h1>
+    <div class="target">الهدف: قرية 3 (-52,-40)</div>
+  </header>
+
+  <main id="troops"></main>
+
+  <section class="card">
+    <div class="step-row">
+      <div>
+        <div class="name">عدد الموجات</div>
+        <div class="hint">الحد الأعلى 30</div>
+      </div>
+      <div class="stepper">
+        <button type="button" id="minus">−</button>
+        <strong id="waves">21</strong>
+        <button type="button" id="plus">+</button>
+      </div>
+    </div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+    <div class="switch-row">
+      <div>
+        <div class="name">البطل في الموجة الأولى</div>
+        <div class="hint">يُستخدم مرة واحدة فقط</div>
+      </div>
+      <label class="switch">
+        <input id="hero" type="checkbox" checked>
+        <span></span>
+      </label>
+    </div>
+    <div class="summary">
+      <span>إجمالي المقاليع</span>
+      <strong id="catTotal">1,890,000</strong>
+    </div>
+  </section>
+
+  <footer>
+    <button type="button" id="cancel">إلغاء</button>
+    <button type="button" class="primary" id="approve">اعتماد الإعداد</button>
+  </footer>
+  <div class="toast" id="toast">تم اعتماد الإعداد التجريبي</div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    tg?.ready();
+    tg?.expand();
+
+    const state = {
+      waves: 21,
+      troops: [
+        { id: 'cavalry', name: 'فارس الجرمان', available: 78516371, selected: 77589529, suffix: 'الموجة الأولى' },
+        { id: 'rams', name: 'محطمة الأبواب', available: 35325208, selected: 2000000, suffix: 'الموجة الأولى' },
+        { id: 'cats', name: 'مقلاع', available: 20186324, selected: 90000, suffix: 'لكل موجة' }
+      ]
+    };
+    const format = value => Number(value).toLocaleString('en-US');
+    const container = document.getElementById('troops');
+
+    function renderTroops() {
+      container.innerHTML = state.troops.map(troop => `
+        <section class="card" data-id="${troop.id}">
+          <div class="row-head">
+            <span class="name">${troop.name}</span>
+            <span class="available">المتوفر ${format(troop.available)}</span>
+          </div>
+          <input type="range" min="0" max="${troop.available}" step="1" value="${troop.selected}">
+          <div class="value-line">
+            <span class="hint">${troop.suffix}</span>
+            <span class="selected">${format(troop.selected)}</span>
+          </div>
+          <div class="presets">
+            ${[25, 50, 75, 100].map(percent =>
+              `<button type="button" class="preset" data-percent="${percent}">${percent === 100 ? 'الكل' : percent + '%'}</button>`
+            ).join('')}
+          </div>
+        </section>
+      `).join('');
+
+      for (const card of container.querySelectorAll('.card')) {
+        const troop = state.troops.find(item => item.id === card.dataset.id);
+        const slider = card.querySelector('input');
+        const selected = card.querySelector('.selected');
+        slider.addEventListener('input', () => {
+          troop.selected = Number(slider.value);
+          selected.textContent = format(troop.selected);
+          updateSummary();
+          tg?.HapticFeedback?.selectionChanged();
+        });
+        for (const button of card.querySelectorAll('.preset')) {
+          button.addEventListener('click', () => {
+            troop.selected = Math.floor(troop.available * Number(button.dataset.percent) / 100);
+            slider.value = troop.selected;
+            selected.textContent = format(troop.selected);
+            card.querySelectorAll('.preset').forEach(item => item.classList.remove('active'));
+            button.classList.add('active');
+            updateSummary();
+            tg?.HapticFeedback?.impactOccurred('light');
+          });
+        }
+      }
+    }
+
+    function updateSummary() {
+      document.getElementById('waves').textContent = state.waves;
+      const cats = state.troops.find(troop => troop.id === 'cats').selected;
+      document.getElementById('catTotal').textContent = format(cats * state.waves);
+    }
+
+    document.getElementById('minus').addEventListener('click', () => {
+      state.waves = Math.max(1, state.waves - 1);
+      updateSummary();
+    });
+    document.getElementById('plus').addEventListener('click', () => {
+      state.waves = Math.min(30, state.waves + 1);
+      updateSummary();
+    });
+    document.getElementById('cancel').addEventListener('click', () => tg?.close());
+    document.getElementById('approve').addEventListener('click', () => {
+      tg?.HapticFeedback?.notificationOccurred('success');
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1800);
+    });
+
+    renderTroops();
+    updateSummary();
+  </script>
+</body>
+</html>
