@@ -184,24 +184,27 @@
       }
     }
 
-    const config = readConfig() || {
-      kind: 'catapult_config',
-      sid: 's4',
-      nonce: 'demo',
-      target: 'قرية 3 (-52,-40)',
-      waves: 21,
-      maximumWaves: 30,
-      hero: true,
-      heroAvailable: true,
-      troops: [
-        { id: 16, name: 'فارس الجرمان', available: 78516371, selected: 77589529, role: 'troop' },
-        { id: 17, name: 'محطمة الأبواب', available: 35325208, selected: 2000000, role: 'troop' },
-        { id: 18, name: 'مقلاع', available: 20186324, selected: 90000, role: 'catapult' }
-      ]
+    const loadedConfig = readConfig();
+    const validConfig = loadedConfig
+      && loadedConfig.kind === 'catapult_config'
+      && Array.isArray(loadedConfig.troops)
+      && loadedConfig.troops.length > 0;
+    const config = validConfig ? loadedConfig : {
+      kind: 'invalid',
+      sid: '',
+      nonce: '',
+      target: 'الرابط قديم — ارجع للبوت وافتح إعدادًا جديدًا',
+      targetCount: 1,
+      waves: 1,
+      maximumWaves: 1,
+      hero: false,
+      heroAvailable: false,
+      troops: []
     };
     const state = {
       waves: Math.max(1, Number(config.waves) || 1),
       maximumWaves: Math.max(1, Number(config.maximumWaves) || 30),
+      targetCount: Math.max(1, Number(config.targetCount) || 1),
       troops: Array.isArray(config.troops) ? config.troops.map(troop => ({
         id: Number(troop.id),
         name: String(troop.name || ''),
@@ -226,11 +229,12 @@
       `الحد الأعلى ${state.maximumWaves}`;
     hero.checked = Boolean(config.hero) && Boolean(config.heroAvailable);
     hero.disabled = !config.heroAvailable;
+    document.getElementById('approve').disabled = !validConfig;
 
     function maximumFor(troop) {
       return troop.role === 'catapult'
-        ? Math.floor(troop.available / state.waves)
-        : troop.available;
+        ? Math.floor(troop.available / (state.waves * state.targetCount))
+        : Math.floor(troop.available / state.targetCount);
     }
 
     function renderTroops() {
